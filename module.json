@@ -1,7 +1,7 @@
 {
   "id": "grimoires-data-hud",
   "title": "Grimoire's Data HUD",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "manifest": "https://raw.githubusercontent.com/EldarSadaron/grimoires-data-hud/main/module.json",
   "download": "https://github.com/EldarSadaron/grimoires-data-hud/archive/refs/heads/main.zip",
   "compatibility": {
