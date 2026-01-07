@@ -24,7 +24,7 @@ class HUD {
         this.elementId = "grimoire-hud";
         this.pos = { top: 100, left: 120 };
         this.overrides = {};
-        this.isMinified = false; // Track collapsed state
+        this.isMinified = false;
     }
 
     create() {
@@ -46,16 +46,13 @@ class HUD {
         this.activateListeners(hudDiv);
         
         // --- LISTENERS ---
-        // Time & Scene
         Hooks.on("updateWorldTime", () => this.update());
         Hooks.on("updateScene", () => this.update());
-        Hooks.on("canvasReady", () => this.update()); // Ensures weather catches up on scene load
+        Hooks.on("canvasReady", () => this.update());
 
-        // Token Movement (GPS)
         Hooks.on("controlToken", () => this.update());
         Hooks.on("updateToken", (token, changes) => { if (changes.x || changes.y) this.update(); });
         
-        // Combat & Audio
         Hooks.on("updateCombat", () => this.update());
         Hooks.on("deleteCombat", () => this.update());
         Hooks.on("createCombat", () => this.update());
@@ -69,33 +66,26 @@ class HUD {
         if (el) el.remove();
     }
 
-    // --- INTERACTIVITY ---
     activateListeners(html) {
-        // Master Click Handler (Delegation)
         html.addEventListener("click", (event) => {
             const target = event.target.closest(".hud-section");
             if (!target) return;
 
-            // 1. COMBAT -> Open Combat Tracker
             if (target.classList.contains("date-section") && target.classList.contains("combat-active")) {
                 ui.combat.renderPopout(true);
             }
-            // 2. DATE -> Open Calendar or Journal
             else if (target.classList.contains("date-section")) {
                 if (window.SimpleCalendar) window.SimpleCalendar.api.openCalendar();
                 else ui.journal.renderPopout(true);
             }
-            // 3. MUSIC -> Open Playlists
             else if (target.classList.contains("music-section")) {
                 ui.playlists.renderPopout(true);
             }
-            // 4. WEATHER -> Open Scene Config (GM only) or just visual feedback
             else if (target.classList.contains("weather-section")) {
                 if (game.user.isGM) new SceneConfig(canvas.scene).render(true);
             }
         });
 
-        // Minify Toggle (Double Click Header)
         html.addEventListener("dblclick", (event) => {
             if (event.target.closest(".hud-header")) {
                 this.isMinified = !this.isMinified;
@@ -119,7 +109,6 @@ class HUD {
         const el = document.getElementById(this.elementId);
         if (!el) return;
 
-        // --- FETCH SETTINGS ---
         const s = {
             weather: game.settings.get(MODULE_ID, "showWeather"),
             moons: game.settings.get(MODULE_ID, "showMoons"),
@@ -140,13 +129,9 @@ class HUD {
             return text;
         };
         
-        // --- DATA GATHERING ---
         const locationString = this.overrides.location || this.getLocation();
-        
-        // WEATHER FIX: Ensure we check both standard scene and environment hooks
         const weatherString = this.overrides.weather || canvas.scene?.weather || "clear"; 
         
-        // --- COMBAT LOGIC ---
         let dateString = this.overrides.date || this.getFantasyDate(worldSeconds);
         let isCombat = false;
 
@@ -161,12 +146,10 @@ class HUD {
             isCombat = true;
         }
 
-        // LIGHTING & MUSIC & HEADER
         const lighting = this.getLightingData();
         const musicTrack = this.getMusicTrack();
         const headerText = s.worldName ? game.world.title : "Data HUD";
 
-        // MOONS
         let moonHTML = "";
         if (s.moons) {
             let moons = [];
@@ -182,8 +165,6 @@ class HUD {
             }).join("");
         }
 
-        // --- RENDER ---
-        // We add 'minified' class if state is true
         const minifyClass = this.isMinified ? "minified" : "";
         
         el.innerHTML = `
@@ -225,14 +206,19 @@ class HUD {
         `;
     }
 
-    // --- HELPER FUNCTIONS ---
-
     getLocation() {
         let loc = canvas.scene?.navName || canvas.scene?.name || "Unknown";
         const token = canvas.tokens.controlled[0];
+        
+        // V13 FIX: Use RegionDocument.testPoint instead of Region.testPoint
         if (token && canvas.regions) {
-            const regions = canvas.regions.placeables.filter(r => r.testPoint({x: token.center.x, y: token.center.y}));
+            const point = { x: token.center.x, y: token.center.y, elevation: token.document.elevation };
+            const regions = canvas.regions.placeables.filter(r => {
+                return r.document && typeof r.document.testPoint === "function" && r.document.testPoint(point);
+            });
+            
             if (regions.length > 0) {
+                // Prioritize the last one found (usually top-most)
                 loc = regions[regions.length - 1].document.name;
             }
         }
@@ -308,9 +294,13 @@ class HUD {
     }
 
     getWeatherIcon(weather) {
-        if (weather.includes("rain")) return "🌧️";
-        if (weather.includes("snow")) return "❄️";
-        if (weather.includes("cloud")) return "☁️";
+        if (!weather) return "☀️";
+        const w = weather.toLowerCase();
+        if (w.includes("rain")) return "🌧️";
+        if (w.includes("snow")) return "❄️";
+        if (w.includes("cloud") || w.includes("overcast")) return "☁️";
+        if (w.includes("storm")) return "⚡";
+        if (w.includes("fog")) return "🌫️";
         return "☀️";
     }
 
@@ -318,9 +308,7 @@ class HUD {
         let isDragging = false;
         let offset = { x: 0, y: 0 };
         element.addEventListener("mousedown", (e) => {
-            // Prevent drag if clicking a button
             if (e.target.closest(".hud-section")) return;
-
             isDragging = true;
             offset.x = e.clientX - element.offsetLeft;
             offset.y = e.clientY - element.offsetTop;
