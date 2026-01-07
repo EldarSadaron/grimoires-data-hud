@@ -18,7 +18,7 @@ Unlike standard calendar modules, Grimoire's HUD is designed to be a **passive, 
 
 ## Installation
 
-1.  Copy the Manifest URL (Coming soon).
+1.  Copy the Manifest URL (https://raw.githubusercontent.com/EldarSadaron/grimoires-data-hud/main/module.json).
 2.  Paste into Foundry VTT > Install Module.
 3.  Enable "Grimoire's Data HUD" in your world.
 
@@ -74,7 +74,7 @@ setTimeout(() => {
 
 Credits
 
-    Author: Eldar
+    Author: Eldar Sadaron
 
     Development Assistance: Generated with the assistance of AI (Google Gemini).
 

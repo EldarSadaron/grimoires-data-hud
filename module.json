@@ -2,17 +2,17 @@
   "id": "grimoires-data-hud",
   "title": "Grimoire's Data HUD",
   "version": "1.0.0",
+  "manifest": "https://raw.githubusercontent.com/EldarSadaron/grimoires-data-hud/main/module.json",
+  "download": "https://github.com/EldarSadaron/grimoires-data-hud/archive/refs/heads/main.zip",
   "compatibility": {
     "minimum": "13",
     "verified": "13.351"
   },
   "authors": [
     {
-      "name": "Eldar",
-      "discord": ""
+      "name": "Eldar"
     }
   ],
   "esmodules": ["scripts/main.js"],
-  "styles": ["styles/hud.css"],
-  "description": "A personal HUD for Time, Date, and Weather."
+  "styles": ["styles/hud.css"]
 }
