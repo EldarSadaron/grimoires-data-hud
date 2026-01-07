@@ -1,0 +1,18 @@
+{
+  "id": "grimoires-data-hud",
+  "title": "Grimoire's Data HUD",
+  "version": "1.0.0",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13.351"
+  },
+  "authors": [
+    {
+      "name": "Eldar",
+      "discord": ""
+    }
+  ],
+  "esmodules": ["scripts/main.js"],
+  "styles": ["styles/hud.css"],
+  "description": "A personal HUD for Time, Date, and Weather."
+}
