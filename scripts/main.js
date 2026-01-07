@@ -1,6 +1,7 @@
+// --- CONSTANTS ---
 const MODULE_ID = "grimoires-data-hud";
 
-// --- INIT: SETTINGS ---
+// --- INIT: REGISTER SETTINGS ---
 Hooks.once("init", () => {
     // 1. Master Switch
     game.settings.register(MODULE_ID, "enableHUD", {
@@ -12,7 +13,22 @@ Hooks.once("init", () => {
         onChange: value => { value ? ui.grimoireHUD?.create() : ui.grimoireHUD?.remove(); }
     });
 
-    // 2. Visual Toggles
+    // 2. Visual Theme (CRITICAL for your CSS)
+    game.settings.register(MODULE_ID, "theme", {
+        name: "HUD Theme",
+        scope: "client",
+        config: true,
+        type: String,
+        choices: {
+            "glass": "Mana Glass (Blue)",
+            "parchment": "Old Parchment",
+            "solid": "High Contrast (B&W)"
+        },
+        default: "glass",
+        onChange: () => ui.grimoireHUD?.update()
+    });
+
+    // 3. Toggles
     ["showLocation", "showDate", "showWeather", "showMoons", "showCombat", "showLighting", "showMusic", "showWorldName"].forEach(t => {
         game.settings.register(MODULE_ID, t, {
             name: `Show ${t.replace("show", "")}`,
@@ -33,23 +49,21 @@ Hooks.once("init", () => {
         onChange: () => ui.grimoireHUD?.update()
     });
 
-    // 3. Moon Configuration
+    // 4. Moon Config
     game.settings.register(MODULE_ID, "moonConfig", {
         scope: "world",
         config: false,
         type: String,
-        default: JSON.stringify([
-            { name: "Luna", cycleDays: 29.5, color: "#e0e0e0" }
-        ])
+        default: JSON.stringify([{ name: "Luna", cycleDays: 29.5, color: "#e0e0e0" }])
     });
     
-    // 4. Calendar Settings
+    // 5. Calendar Settings
     game.settings.register(MODULE_ID, "currentYear", { name: "Current Year", scope: "world", config: true, type: Number, default: 1492 });
     game.settings.register(MODULE_ID, "eraSuffix", { name: "Era Suffix", scope: "world", config: true, type: String, default: "DR" });
     game.settings.register(MODULE_ID, "monthNames", { name: "Month Names", scope: "world", config: true, type: String, default: "Hammer, Alturiak, Ches, Tarsakh, Mirtul, Kythorn, Flamerule, Eleasis, Eleint, Marpenoth, Uktar, Nightal" });
 });
 
-// --- SETUP: API ---
+// --- SETUP ---
 Hooks.once("setup", () => {
     const moduleData = game.modules.get(MODULE_ID);
     moduleData.api = {
@@ -68,6 +82,7 @@ Hooks.once("ready", () => {
     }
 });
 
+// --- MAIN CLASS ---
 class HUD {
     constructor() {
         this.elementId = "grimoire-hud";
@@ -93,7 +108,6 @@ class HUD {
         this.makeDraggable(hudDiv);
         this.activateListeners(hudDiv);
         
-        // Triggers
         const triggers = ["updateWorldTime", "updateScene", "controlToken", "updateCombat", "deleteCombat", "createCombat", "lightingRefresh", "updatePlaylist", "updatePlaylistSound"];
         triggers.forEach(h => Hooks.on(h, () => this.update()));
         Hooks.on("updateToken", (token, changes) => { if (changes.x || changes.y) this.update(); });
@@ -128,6 +142,7 @@ class HUD {
         const el = document.getElementById(this.elementId);
         if (!el) return;
 
+        // Settings Map
         const s = {
             loc: game.settings.get(MODULE_ID, "showLocation"),
             date: game.settings.get(MODULE_ID, "showDate"),
@@ -136,17 +151,29 @@ class HUD {
             combat: game.settings.get(MODULE_ID, "showCombat"),
             music: game.settings.get(MODULE_ID, "showMusic"),
             light: game.settings.get(MODULE_ID, "showLighting"),
+            world: game.settings.get(MODULE_ID, "showWorldName"),
+            theme: game.settings.get(MODULE_ID, "theme"), // Crucial!
             compact: game.settings.get(MODULE_ID, "compactMode")
         };
 
         const worldSeconds = game.time.worldTime;
         
-        // Data Gathering
-        const location = this.overrides.location || this.getLocation();
+        // --- DATA GATHERING ---
+        // 1. Ticker Logic (Restored)
+        const makeTicker = (text) => {
+            if (text && text.length > 20 && !s.compact) {
+                return `<div class="ticker-wrap"><div class="ticker-move">${text}</div></div>`;
+            }
+            return text;
+        };
+
+        const locationRaw = this.overrides.location || this.getLocation();
+        const locationHTML = makeTicker(locationRaw);
+        
         const weather = this.overrides.weather || canvas.scene?.weather || "Clear";
         let dateString = this.overrides.date || this.getFantasyDate(worldSeconds);
         
-        // Combat Check
+        // Combat Logic
         let isCombat = false;
         if (s.combat && game.combat?.started) {
             const c = game.combat.combatant;
@@ -166,27 +193,54 @@ class HUD {
             }).join("");
         }
 
-        // Render
-        const minifyClass = this.isMinified ? "minified" : "";
+        // Lighting & Music
+        const lighting = this.getLightingData();
+        const musicTrack = this.getMusicTrack();
+
+        // --- RENDER ---
+        const themeClass = `theme-${s.theme}`; // e.g. theme-glass
+        const compactClass = s.compact ? "compact" : "";
+        const minifiedClass = this.isMinified ? "minified" : "";
+        
+        const headerText = s.world ? game.world.title : "Data HUD";
+
         el.innerHTML = `
-            <div class="hud-box ${s.compact ? 'compact' : ''} ${minifyClass}">
-                ${!s.compact ? `<h3 class="hud-header">Data HUD</h3>` : ""}
+            <div class="hud-box ${themeClass} ${compactClass} ${minifiedClass}">
+                ${!s.compact ? `<h3 class="hud-header">${headerText}</h3>` : ""}
+                
                 <div class="hud-content">
-                    ${s.loc ? `<div class="hud-section location">📍 ${location}</div>` : ""}
-                    ${s.date ? `<div class="hud-section date ${isCombat ? 'combat-active' : ''}">📅 ${dateString}</div>` : ""}
+                    ${s.loc ? `<div class="hud-section location-section">${locationHTML}</div>` : ""}
+                    
+                    ${s.date ? `<div class="hud-section date-section ${isCombat ? 'combat-active' : ''}">${dateString}</div>` : ""}
+                    
                     ${s.moons ? `<div class="hud-section moon-section">${moonHTML}</div>` : ""}
-                    ${s.weather ? `<div class="hud-section weather">🌤️ ${weather}</div>` : ""}
-                    ${s.light ? `<div class="hud-section lighting">${this.getLightingData()}</div>` : ""}
-                    ${s.music && this.getMusicTrack() ? `<div class="hud-section music">🎵 ${this.getMusicTrack()}</div>` : ""}
+                    
+                    ${s.weather ? `
+                        <div class="hud-section weather-section">
+                            <span class="weather-text">${weather}</span>
+                        </div>` : ""}
+                        
+                    ${s.light ? `
+                        <div class="hud-section lighting-section">
+                            <span class="lighting-text">${lighting}</span>
+                        </div>` : ""}
+                        
+                    ${s.music && musicTrack ? `
+                        <div class="hud-section music-section">
+                            <span class="music-icon">🎵</span>
+                            <span class="music-text">${makeTicker(musicTrack)}</span>
+                        </div>` : ""}
                 </div>
             </div>
         `;
     }
 
+    // --- HELPERS ---
     getLocation() {
         let loc = canvas.scene?.navName || canvas.scene?.name || "Unknown";
         const token = canvas.tokens.controlled[0];
-        // V13 SAFE REGION CHECK
+        
+        // V13 CRITICAL FIX
         if (token && canvas.regions) {
             const point = { x: token.center.x, y: token.center.y, elevation: token.document.elevation };
             const region = canvas.regions.placeables.find(r => r.document && r.document.testPoint(point));
@@ -224,16 +278,15 @@ class HUD {
     }
 
     getMoonIcon(phaseIndex, color) {
-        // Simple SVG representation for each phase
         const paths = [
-            `<circle cx="12" cy="12" r="10" fill="#222" stroke="${color}"/>`, // New
-            `<path d="M12 2a10 10 0 0 1 0 20 10 10 0 0 0 0-20z" fill="${color}"/>`, // Waxing C
-            `<path d="M12 2a10 10 0 0 1 0 20V2z" fill="${color}"/>`, // 1st Q
-            `<circle cx="12" cy="12" r="10" fill="${color}"/>`, // Waxing G (Simp)
-            `<circle cx="12" cy="12" r="10" fill="${color}"/>`, // Full
-            `<circle cx="12" cy="12" r="10" fill="${color}"/>`, // Waning G (Simp)
-            `<path d="M12 2a10 10 0 0 0 0 20V2z" fill="${color}"/>`, // Last Q
-            `<path d="M12 2a10 10 0 0 0 0 20 10 10 0 0 1 0-20z" fill="${color}"/>` // Waning C
+            `<circle cx="12" cy="12" r="10" fill="#222" stroke="${color}"/>`, 
+            `<path d="M12 2a10 10 0 0 1 0 20 10 10 0 0 0 0-20z" fill="${color}"/>`, 
+            `<path d="M12 2a10 10 0 0 1 0 20V2z" fill="${color}"/>`, 
+            `<circle cx="12" cy="12" r="10" fill="${color}"/>`, 
+            `<circle cx="12" cy="12" r="10" fill="${color}"/>`, 
+            `<circle cx="12" cy="12" r="10" fill="${color}"/>`, 
+            `<path d="M12 2a10 10 0 0 0 0 20V2z" fill="${color}"/>`, 
+            `<path d="M12 2a10 10 0 0 0 0 20 10 10 0 0 1 0-20z" fill="${color}"/>` 
         ];
         return `<svg width="20" height="20" viewBox="0 0 24 24">${paths[phaseIndex]}</svg>`;
     }
